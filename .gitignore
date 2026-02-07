@@ -1,2 +1,4 @@
 user_data
 venv
+messages_data.json
+__pycache__

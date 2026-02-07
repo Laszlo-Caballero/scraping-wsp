@@ -14,4 +14,5 @@ class Message:
     text: str
     status: StatusEnum
     date: str
+    from_me: bool = True
     

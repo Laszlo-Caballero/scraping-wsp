@@ -1,8 +1,19 @@
 from playwright.sync_api import sync_playwright
 import json
 import time
-from model.chat import Message
+from model.chat import MessageDto
 from dataclasses import asdict
+from db.utils import create_session, create_tables
+from crud.crud import ChatCrud, MessageCrud
+from enums.status_enum import StatusEnum
+
+create_tables()
+
+session = create_session()
+
+chat_crud = ChatCrud(session)
+message_crud = MessageCrud(session)
+
 
 with sync_playwright() as p:
     context = p.chromium.launch_persistent_context(
@@ -48,6 +59,8 @@ with sync_playwright() as p:
                 clean.append(t)
 
         
+        chat = chat_crud.create_chat(name=clean[0], phone=clean[1])
+        
         ## FLOW 1/01/2026
         button_search = page.locator("button[aria-label='Buscar']")
         button_search.click()
@@ -67,84 +80,126 @@ with sync_playwright() as p:
         
         time.sleep(3)
         
+        count_checked = True
+        count_messages_checked = 0
         
-        container_messages = page.locator("div.x3psx0u.x12xbjc7.x1c1uobl.xrmvbpv.xh8yej3.xquzyny.xvc5jky.x11t971q")
+        scroll = page.locator("div[data-scrolltracepolicy='wa.web.conversation.messages']")
+        is_pause = 0
         
-        children = container_messages.locator(":scope > div")
-        
-        current_date = None
-        messages_data: list[Message] = []
-        
-        
-        for i in range(children.count()):
-            print(f"Processing message {i+1}/{children.count()}")
+        while count_checked:
+            print("Checking messages...")
+            container_messages = page.locator("div.x3psx0u.x12xbjc7.x1c1uobl.xrmvbpv.xh8yej3.xquzyny.xvc5jky.x11t971q")
+            children = container_messages.locator(":scope > div")
             
+            current_date = None
             
-            el = children.nth(i)
+            child_all = children.all()
             
-            class_name = el.get_attribute("class") or ""
-            
-            if "focusable-list-item" in class_name:
-                current_date = el.inner_text().strip()
-                print("DATE:", current_date)
-                continue
-            
-            messages = el.locator("div[role='row']")
-            
-            
-            if messages.count() == 0:
-                continue
-            
-            message_location = messages.all()
+            for i, el in enumerate(child_all):
+                
+                if el.count() == 0:
+                    print("No more messages to check.")
+                    continue
+                
+                if count_messages_checked == children.count():
+                    break
+                
+                print(f"Processing message {i+1}/{children.count()}")
+                
+                
+                
+                if el.get_attribute("check") == "true":
+                    print("Already processed, skipping...")
+                    count_messages_checked += 1
+                    continue
+                
+                el.evaluate("""
+                            el => {
+                                el.setAttribute('check', 'true')
+                                el.style.backgroundColor = '#ff0303'
+                            }
+                            """)
+                
+                class_name = el.get_attribute("class") or ""
+                
+                if "focusable-list-item" in class_name:
+                    current_date = el.inner_text().strip()
+                    print("DATE:", current_date)
+                    continue
+                
+                messages = el.locator("div[role='row']")
+                
+                
+                if messages.count() == 0:
+                    continue
+                
+                message_location = messages.all()
 
-            for message_raw in message_location:
-                from_me = True
-                
-                find_out = message_raw.locator("div.message-out.focusable-list-item._amjy._amjz._amjw.x1klvx2g.xahtqtb")
-                if find_out.count() == 0:
-                    from_me = False
-            
-                audio = message_raw.locator("span[data-icon='audio-download']")
-                if audio.count() > 0:
-                    print("This is an audio message.")
-                    new_messsage = Message(
-                        type="audio",
-                        text="Audio message",
-                        status="sent",
-                        date=current_date,
-                        from_me=from_me
-                    )
-                    messages_data.append(new_messsage)
-                    continue
-                
-                is_citation = message_raw.locator("div[aria-label='Mensaje citado']").count() > 0
-                
-                idx_label = 0
-                
-                if is_citation:
-                    idx_label = 1
-                
-                text = message_raw.locator("span[data-testid='selectable-text']")
-                if text.count() > 0:
-                    text_content = text.nth(idx_label).all_inner_texts()
-                    new_messsage = Message(
-                        type="text",
-                        text=" ".join(text_content),
-                        status="sent",
-                        date=current_date,
-                        from_me=from_me
-                    )
-                    messages_data.append(new_messsage)
-                    continue
+                for message_raw in message_location:
+                    from_me = True
                     
-            print(f"Messages for {current_date}: {messages.count()}")
-        
-        print(f"Total messages collected: {len(messages_data)}")
-        with open("messages_data.json", "w") as f:
-                json.dump([asdict(m) for m in messages_data], f, indent=4, ensure_ascii=False)
+                    send_type: StatusEnum = StatusEnum.NOT_VIEWED
+                    
+                    locale_view = message_raw.locator("span[aria-label=' Leído ']")
+                    
+                    if locale_view.count() > 0:
+                        send_type = StatusEnum.VIEWED
+                    
+                    
+                    find_out = message_raw.locator("div.message-out.focusable-list-item._amjy._amjz._amjw.x1klvx2g.xahtqtb")
+                    if find_out.count() == 0:
+                        from_me = False
                 
+                    audio = message_raw.locator("span[data-icon='audio-download']")
+                    if audio.count() > 0:
+                        print("This is an audio message.")
+                        new_messsage = MessageDto(
+                            type="audio",
+                            text="Audio message",
+                            status=send_type,
+                            date=current_date,
+                            from_me=from_me
+                        )
+                        message_crud.create_message(new_messsage, chat)
+                        continue
+                    
+                    is_citation = message_raw.locator("div[aria-label='Mensaje citado']").count() > 0
+                    
+                    idx_label = 0
+                    
+                    if is_citation:
+                        idx_label = 1
+                    
+                    text = message_raw.locator("span[data-testid='selectable-text']")
+                    if text.count() > 0:
+                        text_content = text.nth(idx_label).all_inner_texts()
+                        new_messsage = MessageDto(
+                            type="text",
+                            text=" ".join(text_content),
+                            status=send_type,
+                            date=current_date,
+                            from_me=from_me
+                        )
+                        message_crud.create_message(new_messsage, chat)
+                        continue
+                        
+                print(f"Messages for {current_date}: {messages.count()}")
+                
+            
+            scroll.evaluate("el => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })")
+            
+            
+            is_pause += 1
+            
+            if is_pause == 10:
+                isTrue = input("Do you want to check for more messages? (y/n): ")
+                if isTrue.lower() != "y":
+                    count_checked = False
+                else:
+                    is_pause = 0
+            
 
         
         input("Press Enter to continue to the next chat...")
-    
+        
     input("Press Enter to end the session...")    

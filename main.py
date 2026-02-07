@@ -58,8 +58,27 @@ with sync_playwright() as p:
             if t and t not in clean:
                 clean.append(t)
 
+        name = clean[0] if len(clean) > 0 else None
+        phone = clean[1] if len(clean) > 1 else None
         
-        chat = chat_crud.create_chat(name=clean[0], phone=clean[1])
+        
+        if name is None or phone is None:
+            name_enterprise = page.locator(".xlm9qay.x1s688f.x1e56ztr")
+            if name_enterprise.count() > 0:
+                name = name_enterprise.inner_text().strip()
+            else:
+                name = "Unknown"
+            
+            phone_enterprise = page.locator(".x1iyjqo2.xs83m0k.xdl72j9.x1rdy4ex.x6ikm8r.x10wlt62.xlyipyv.xuxw1ft")
+            if phone_enterprise.count() > 0:
+                phone = phone_enterprise.inner_text().strip()
+            else:
+                phone = "Unknown"
+            
+            
+                
+        
+        chat = chat_crud.create_chat(name=name, phone=phone)
         
         ## FLOW 1/01/2026
         button_search = page.locator("button[aria-label='Buscar']")

@@ -31,6 +31,8 @@ async def main():
         main = page.locator("#main")
         count_check_chats = True
         count_chats_checked = 0
+        max_idx = 0
+        
         while count_check_chats:
             print("Checking chats...")
             
@@ -59,12 +61,11 @@ async def main():
                         }
                         """)
 
-            max_idx = await page.evaluate("window.__wsp_idx")
             print("Total chats indexed:", max_idx)
             print(count)
 
 
-            for y in range(count):
+            for y in range(max_idx, max_idx + count):
                 chat = scroll_chat.locator(f"div[wsp-scrap='{y}']")
 
                 if await chat.count() == 0:
@@ -271,7 +272,7 @@ async def main():
                     if is_pause == 20:
                         count_checked = False
                         
-            
+            max_idx = await page.evaluate("window.__wsp_idx")
             is_pause_chats += 1
             
             if is_pause_chats == 5:

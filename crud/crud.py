@@ -23,6 +23,7 @@ class MessageCrud:
             status=messageDto.status,
             date=messageDto.date,
             from_me=messageDto.from_me,
+            time_stamp=messageDto.time_stamp,
             chat=chat
         )
         self.session.add(new_message)

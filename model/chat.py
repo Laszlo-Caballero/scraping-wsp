@@ -15,3 +15,4 @@ class MessageDto:
     status: StatusEnum
     date: str
     from_me: bool = True
+    time_stamp: str = None

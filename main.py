@@ -32,6 +32,7 @@ async def main():
         count_check_chats = True
         count_chats_checked = 0
         max_idx = 0
+        is_pause_chats = 0
         
         while count_check_chats:
             print("Checking chats...")
@@ -46,10 +47,8 @@ async def main():
   
             
             count = await chats.count()
-            is_pause_chats = 0
             ## FOR TESTING PURPOSES ONLY: Click the first chat
             
-            input("Press Enter to start checking chats...")
             
             await page.evaluate("""
                         () => {
@@ -134,8 +133,24 @@ async def main():
                     
                         
                 
-                chat = chat_crud.create_chat(name=name, phone=phone)
-                continue
+                chat = chat_crud.create_chat(name=name, phone=phone)   
+                
+                not_previus_chat = True
+                count_previus_checked = 0
+                
+                while not_previus_chat:
+                    if count_previus_checked > 5:
+                        print("Too many previous messages loaded, stopping to avoid infinite loop.")
+                        break
+                    
+                    load_previus_messages = main.locator("button.x1bvqhpb.x6f6fmj.x1b9z3ur.x9f619.x1rg5ohu.x1okw0bk.x193iq5w.x123j3cw.xpdmqnj.x10b6aqq.x1g0dm76.x13a8xbf.xdod15v.x2b8uid.xyi3aci.xwf5gio.x1p453bz.x1suzm8a")             
+                    if await load_previus_messages.count() > 0:
+                        print("Loading previous messages...")
+                        await load_previus_messages.click()
+                        await page.wait_for_selector("span[data-visualcompletion='loading-state']", state="detached")
+                        count_previus_checked += 1    
+                    else:
+                        not_previus_chat = False
                 
                 
                 
@@ -218,6 +233,15 @@ async def main():
                             
                             send_type: StatusEnum = StatusEnum.NOT_VIEWED
                             
+                            time_stamp = message_raw.locator("span.x193iq5w.xeuugli.x13faqbe.x1vvkbs.xt0psk2.x1fj9vlw.xhslqc4.x1hx0egp.x1pg5gke.xjb2p0i.xo1l8bm.xl2ypbo.x1ic7a3i")
+                            
+                            texts = await time_stamp.all_inner_texts()
+                            time_text = None
+
+                            for t in texts:
+                                if ":" in t:   # crude pero funciona
+                                    time_text = t
+                                    
                             locale_view = message_raw.locator("span[aria-label=' Leído ']")
                             
                             if await locale_view.count() > 0:
@@ -236,7 +260,8 @@ async def main():
                                     text="Audio message",
                                     status=send_type,
                                     date=current_date,
-                                    from_me=from_me
+                                    from_me=from_me,
+                                    time_stamp=time_text
                                 )
                                 message_crud.create_message(new_messsage, chat)
                                 continue
@@ -256,7 +281,8 @@ async def main():
                                     text=" ".join(text_content),
                                     status=send_type,
                                     date=current_date,
-                                    from_me=from_me
+                                    from_me=from_me,
+                                    time_stamp=time_text
                                 )
                                 message_crud.create_message(new_messsage, chat)
                                 continue

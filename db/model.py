@@ -26,4 +26,5 @@ class Message(Base):
     date: Mapped[str] = mapped_column(Text, nullable=True)
     from_me: Mapped[bool] = mapped_column(Boolean)
     chat_id: Mapped[int] = mapped_column(ForeignKey("chats.chat_id"))
+    time_stamp: Mapped[str] = mapped_column(Text, nullable=True)
     chat: Mapped["Chat"] = relationship("Chat", back_populates="messages")
